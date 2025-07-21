@@ -4,7 +4,7 @@ import Combine
 import os.log
 
 @MainActor
-class MenuBarController: NSObject {
+class MenuBarController: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
     private let viewModel = ToggleViewModel()
@@ -70,6 +70,7 @@ class MenuBarController: NSObject {
     private func updateMenu() {
         Logger.menuBar.debug("Updating menu")
         menu = menuBuilder.buildMenu(with: viewModel.toggles)
+        menu?.delegate = self
         statusItem?.menu = menu
     }
     
@@ -124,5 +125,19 @@ class MenuBarController: NSObject {
     deinit {
         appearanceObserver?.invalidate()
         statusItem = nil
+    }
+    
+    // MARK: - NSMenuDelegate
+    
+    func menuWillOpen(_ menu: NSMenu) {
+        Logger.menuBar.debug("Menu will open - refreshing dynamic content")
+        
+        // Refresh dynamic toggles (like trash count)
+        Task {
+            await viewModel.refreshDynamicToggles()
+            await MainActor.run {
+                self.updateMenu()
+            }
+        }
     }
 }

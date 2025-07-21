@@ -7,7 +7,7 @@ struct UserPreferences: Codable {
     var showInDock: Bool
     
     static let `default` = UserPreferences(
-        enabledToggles: Set([.darkMode, .desktopIcons, .keepAwake, .screenLock]),
+        enabledToggles: Set([.darkMode, .desktopIcons, .keepAwake, .screenLock, .emptyTrash]),
         toggleOrder: ToggleType.allCases,
         launchAtLogin: false,
         showInDock: false

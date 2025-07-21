@@ -190,17 +190,25 @@
 **Priority**: Medium  
 **Assignee**: Agent One  
 **Story Points**: 3  
-**Status**: To Do
+**Status**: Done
 
 **Description**: As a user, I want to empty trash with one click.
 
 **Acceptance Criteria**:
-- [ ] Empties trash when clicked
-- [ ] Shows confirmation dialog (optional)
-- [ ] Shows trash item count in menu
-- [ ] Handles errors gracefully
+- [x] Empties trash when clicked
+- [x] Shows confirmation dialog (optional)
+- [x] Shows trash item count in menu
+- [x] Handles errors gracefully
 
 **Dependencies**: QT-003
+
+**Implementation Notes**:
+- Dynamic title shows item count: "Empty Trash (12 items)" or "Empty Trash (Empty)"
+- Confirmation dialog with item count before emptying
+- Two methods: AppleScript (primary) and FileManager (fallback)
+- Trash count updates when menu opens
+- Non-blocking confirmation dialog
+- Handles locked items and permission errors gracefully
 
 ---
 

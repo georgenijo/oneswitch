@@ -36,10 +36,19 @@ class ToggleViewModel: ObservableObject {
                 let isAvailable = await ToggleServiceManager.shared.isAvailable(for: toggleType)
                 let isEnabled = (try? await ToggleServiceManager.shared.getCurrentState(for: toggleType)) ?? false
                 
+                // Get custom title for dynamic toggles
+                var customTitle: String? = nil
+                if toggleType == .emptyTrash,
+                   let service = ToggleServiceManager.shared.service(for: .emptyTrash) as? EmptyTrashService {
+                    let count = await service.getTrashItemCount()
+                    customTitle = count == 0 ? "Empty Trash (Empty)" : "Empty Trash (\(count) item\(count == 1 ? "" : "s"))"
+                }
+                
                 loadedToggles.append(Toggle(
                     type: toggleType,
                     isEnabled: isEnabled,
-                    isAvailable: isAvailable
+                    isAvailable: isAvailable,
+                    customTitle: customTitle
                 ))
             }
             
@@ -235,6 +244,29 @@ class ToggleViewModel: ObservableObject {
         
         if let urlString = urlString, let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
+        }
+    }
+    
+    // MARK: - Dynamic Updates
+    
+    func refreshDynamicToggles() async {
+        // Update toggles with dynamic content (like trash count)
+        for index in toggles.indices {
+            let toggle = toggles[index]
+            
+            switch toggle.type {
+            case .emptyTrash:
+                if let service = ToggleServiceManager.shared.service(for: .emptyTrash) as? EmptyTrashService {
+                    let count = await service.getTrashItemCount()
+                    let title = count == 0 ? "Empty Trash (Empty)" : "Empty Trash (\(count) item\(count == 1 ? "" : "s"))"
+                    
+                    await MainActor.run {
+                        self.toggles[index].customTitle = title
+                    }
+                }
+            default:
+                break
+            }
         }
     }
 }

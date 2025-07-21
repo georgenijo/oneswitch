@@ -56,6 +56,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screenLockService = ScreenLockService()
         ToggleServiceManager.shared.register(screenLockService, for: .screenLock)
         
+        // Register Empty Trash service (action)
+        let emptyTrashService = EmptyTrashService()
+        ToggleServiceManager.shared.register(emptyTrashService, for: .emptyTrash)
+        
         // Future services will be registered here
     }
 }
