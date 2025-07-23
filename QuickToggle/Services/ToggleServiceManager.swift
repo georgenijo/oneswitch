@@ -155,6 +155,21 @@ class ToggleServiceManager {
         return status
     }
     
+    /// Start all services that have lifecycle management
+    func startAllServices() async {
+        Logger.toggles.info("Starting all services")
+        
+        await withTaskGroup(of: Void.self) { group in
+            for service in services.values {
+                if let lifecycleService = service as? ServiceLifecycle {
+                    group.addTask {
+                        await lifecycleService.start()
+                    }
+                }
+            }
+        }
+    }
+    
     /// Stop all services that have lifecycle management
     func stopAllServices() async {
         Logger.toggles.info("Stopping all services")

@@ -24,6 +24,7 @@ let package = Package(
             sources: [
                 "QuickToggleApp.swift",
                 "Core/",
+                "Controllers/",
                 "Models/",
                 "ViewModels/",
                 "Views/",

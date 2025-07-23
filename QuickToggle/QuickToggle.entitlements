@@ -11,5 +11,9 @@
         <string>com.apple.systemevents</string>
         <string>com.apple.finder</string>
     </array>
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <key>com.apple.security.device.bluetooth</key>
+    <true/>
 </dict>
 </plist>

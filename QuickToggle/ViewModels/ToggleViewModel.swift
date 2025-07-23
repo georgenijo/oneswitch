@@ -10,9 +10,10 @@ class ToggleViewModel: ObservableObject {
     
     private var preferences: UserPreferences
     private var cancellables = Set<AnyCancellable>()
+    private let preferencesManager = PreferencesManager.shared
     
     init() {
-        self.preferences = UserPreferences.default
+        self.preferences = preferencesManager.loadPreferences()
         Logger.toggles.info("Initializing ToggleViewModel")
         loadToggles()
         setupObservers()
@@ -67,6 +68,8 @@ class ToggleViewModel: ObservableObject {
         // Observe preference changes
         NotificationCenter.default.publisher(for: Constants.Notifications.preferencesChanged)
             .sink { [weak self] _ in
+                Logger.toggles.info("Preferences changed notification received")
+                self?.preferences = self?.preferencesManager.loadPreferences() ?? UserPreferences.default
                 self?.loadToggles()
             }
             .store(in: &cancellables)

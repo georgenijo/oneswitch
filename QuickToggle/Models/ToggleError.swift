@@ -8,6 +8,7 @@ enum ToggleError: LocalizedError {
     case timeout
     case invalidState
     case unknown
+    case operationFailed
     
     var errorDescription: String? {
         switch self {
@@ -23,6 +24,8 @@ enum ToggleError: LocalizedError {
             return "Invalid state for this operation"
         case .unknown:
             return "An unknown error occurred"
+        case .operationFailed:
+            return "The operation failed to complete"
         }
     }
     
