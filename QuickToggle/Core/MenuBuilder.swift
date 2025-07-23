@@ -1,6 +1,7 @@
 import Cocoa
 import os.log
 
+@MainActor
 class MenuBuilder {
     private weak var target: AnyObject?
     
@@ -62,6 +63,12 @@ class MenuBuilder {
             menuItem.image = image
         }
         
+        // Add submenu for Bluetooth to show devices
+        if toggle.type == .bluetooth, 
+           let service = ToggleServiceManager.shared.service(for: .bluetooth) as? BluetoothService {
+            menuItem.submenu = createBluetoothSubmenu(for: service)
+        }
+        
         return menuItem
     }
     
@@ -112,6 +119,89 @@ class MenuBuilder {
         case .screenLock: return "l"
         default: return ""
         }
+    }
+    
+    private func createBluetoothSubmenu(for service: BluetoothService) -> NSMenu {
+        let submenu = NSMenu()
+        
+        // Add toggle item at top
+        let toggleItem = NSMenuItem(
+            title: service.currentState ? "Turn Bluetooth Off" : "Turn Bluetooth On",
+            action: #selector(MenuBarController.toggleClicked(_:)),
+            keyEquivalent: ""
+        )
+        toggleItem.target = target
+        toggleItem.representedObject = Toggle(type: .bluetooth)
+        submenu.addItem(toggleItem)
+        submenu.addItem(NSMenuItem.separator())
+        
+        // Get paired devices
+        let devices = service.getPairedDevices()
+        
+        if devices.isEmpty {
+            let noDevicesItem = NSMenuItem(title: "No Paired Devices", action: nil, keyEquivalent: "")
+            noDevicesItem.isEnabled = false
+            submenu.addItem(noDevicesItem)
+        } else {
+            // Group devices by type
+            let groupedDevices = Dictionary(grouping: devices) { $0.deviceType }
+            let sortedTypes = groupedDevices.keys.sorted { $0.rawValue < $1.rawValue }
+            
+            for (index, deviceType) in sortedTypes.enumerated() {
+                if index > 0 {
+                    submenu.addItem(NSMenuItem.separator())
+                }
+                
+                // Add devices of this type
+                if let devicesOfType = groupedDevices[deviceType] {
+                    for device in devicesOfType.sorted(by: { $0.name < $1.name }) {
+                        let deviceItem = createBluetoothDeviceMenuItem(for: device, service: service)
+                        submenu.addItem(deviceItem)
+                    }
+                }
+            }
+        }
+        
+        return submenu
+    }
+    
+    private func createBluetoothDeviceMenuItem(for device: BluetoothDeviceInfo, service: BluetoothService) -> NSMenuItem {
+        var title = device.displayName
+        
+        // Add battery level if available
+        if let batteryLevel = device.batteryLevel {
+            title += " (\(batteryLevel)%)"
+        }
+        
+        let menuItem = NSMenuItem(
+            title: title,
+            action: #selector(MenuBarController.bluetoothDeviceClicked(_:)),
+            keyEquivalent: ""
+        )
+        
+        menuItem.target = target
+        menuItem.representedObject = device
+        
+        // Set state based on connection
+        menuItem.state = device.isConnected ? .on : .off
+        
+        // Add device icon
+        if let image = NSImage(systemSymbolName: device.deviceType.iconName, accessibilityDescription: device.deviceType.rawValue) {
+            menuItem.image = image
+        }
+        
+        // Add battery icon if available
+        if let batteryIconName = device.batteryIconName,
+           let batteryImage = NSImage(systemSymbolName: batteryIconName, accessibilityDescription: "Battery Level") {
+            // Create attributed title with battery icon
+            let attachment = NSTextAttachment()
+            attachment.image = batteryImage
+            let attributedString = NSMutableAttributedString(string: title + " ")
+            attributedString.append(NSAttributedString(attachment: attachment))
+            menuItem.attributedTitle = attributedString
+        }
+        
+        return menuItem
     }
 }
 

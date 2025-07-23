@@ -21,6 +21,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Register real services
         registerServices()
         
+        // Start all services
+        Task {
+            await ToggleServiceManager.shared.startAllServices()
+        }
+        
         // Initialize menu bar
         menuBarController = MenuBarController()
     }
@@ -59,6 +64,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Register Empty Trash service (action)
         let emptyTrashService = EmptyTrashService()
         ToggleServiceManager.shared.register(emptyTrashService, for: .emptyTrash)
+        
+        // Register Bluetooth service
+        let bluetoothService = BluetoothService()
+        ToggleServiceManager.shared.register(bluetoothService, for: .bluetooth)
         
         // Future services will be registered here
     }

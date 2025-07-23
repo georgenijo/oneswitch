@@ -5,11 +5,13 @@ struct UserPreferences: Codable {
     var toggleOrder: [ToggleType]
     var launchAtLogin: Bool
     var showInDock: Bool
+    var skipEmptyTrashConfirmation: Bool
     
     static let `default` = UserPreferences(
-        enabledToggles: Set([.darkMode, .desktopIcons, .keepAwake, .screenLock, .emptyTrash]),
+        enabledToggles: Set([.darkMode, .desktopIcons, .keepAwake, .screenLock, .emptyTrash, .bluetooth]),
         toggleOrder: ToggleType.allCases,
         launchAtLogin: false,
-        showInDock: false
+        showInDock: false,
+        skipEmptyTrashConfirmation: false
     )
 }

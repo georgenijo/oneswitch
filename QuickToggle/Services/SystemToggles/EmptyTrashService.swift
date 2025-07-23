@@ -42,19 +42,30 @@ class EmptyTrashService: BaseObservableToggleService {
     }
     
     override func hasPermission() async -> Bool {
-        // Basic trash operations don't need special permissions
-        return true
+        // Check if we can access trash
+        return await checkTrashAccess()
     }
     
     override func requestPermission() async -> Bool {
-        // No permissions to request
-        return true
+        // Show permission dialog
+        await MainActor.run {
+            showTrashAccessAlert()
+        }
+        return false
     }
     
     override func performAction() async throws {
         Logger.toggles.info("Performing empty trash action")
         
-        // Update count first
+        // Check permissions first
+        if !(await checkTrashAccess()) {
+            await MainActor.run {
+                showTrashAccessAlert()
+            }
+            throw ToggleError.permissionDenied(.emptyTrash)
+        }
+        
+        // Update count with error handling
         await updateTrashCount()
         
         // Check if trash is already empty
@@ -64,11 +75,18 @@ class EmptyTrashService: BaseObservableToggleService {
             return
         }
         
-        // Show confirmation dialog
-        let shouldEmpty = await showConfirmationDialog()
+        // Check preference for confirmation
+        let preferences = PreferencesManager.shared.loadPreferences()
+        let skipConfirmation = preferences.skipEmptyTrashConfirmation
+        
+        var shouldEmpty = true
+        
+        if !skipConfirmation {
+            shouldEmpty = await showConfirmationDialog()
+        }
         
         if shouldEmpty {
-            Logger.toggles.info("User confirmed empty trash")
+            Logger.toggles.info("Emptying trash with \(self.cachedItemCount) items")
             
             // Try Finder method first (most reliable)
             let success = await emptyTrashWithFinder()
@@ -104,37 +122,103 @@ class EmptyTrashService: BaseObservableToggleService {
     
     // MARK: - Private Methods
     
-    private func updateTrashCount() async {
-        let count = await countTrashItems()
-        await MainActor.run {
-            self.cachedItemCount = count
-            self.lastCountUpdate = Date()
-        }
-        Logger.toggles.debug("Trash item count updated: \(count)")
-    }
-    
-    private func countTrashItems() async -> Int {
+    private func checkTrashAccess() async -> Bool {
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let fileManager = FileManager.default
-                let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first
+                guard let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first else {
+                    continuation.resume(returning: false)
+                    return
+                }
                 
-                guard let trashURL = trashURL else {
-                    Logger.toggles.error("Could not locate trash directory")
-                    continuation.resume(returning: 0)
+                // Check if we can read the trash directory
+                let isReadable = fileManager.isReadableFile(atPath: trashURL.path)
+                Logger.toggles.debug("Trash access check: \(isReadable ? "granted" : "denied")")
+                continuation.resume(returning: isReadable)
+            }
+        }
+    }
+    
+    private func updateTrashCount() async {
+        do {
+            let count = try await countTrashItems()
+            await MainActor.run {
+                self.cachedItemCount = count
+                self.lastCountUpdate = Date()
+            }
+            Logger.toggles.debug("Trash item count updated: \(count)")
+        } catch {
+            Logger.toggles.error("Failed to update trash count: \(error)")
+            // Try Finder fallback
+            let finderCount = await getTrashCountViaFinder()
+            await MainActor.run {
+                self.cachedItemCount = finderCount
+                self.lastCountUpdate = Date()
+            }
+        }
+    }
+    
+    private func countTrashItems() async throws -> Int {
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let fileManager = FileManager.default
+                guard let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first else {
+                    continuation.resume(throwing: ToggleError.systemError(NSError(
+                        domain: "EmptyTrashService",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not locate trash directory"]
+                    )))
+                    return
+                }
+                
+                // Check access first
+                guard fileManager.isReadableFile(atPath: trashURL.path) else {
+                    Logger.toggles.error("Permission denied accessing trash directory")
+                    continuation.resume(throwing: ToggleError.permissionDenied(.emptyTrash))
                     return
                 }
                 
                 do {
+                    // Remove .skipsHiddenFiles to count ALL items
                     let items = try fileManager.contentsOfDirectory(
                         at: trashURL,
                         includingPropertiesForKeys: nil,
-                        options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+                        options: [.skipsSubdirectoryDescendants]
                     )
                     continuation.resume(returning: items.count)
                 } catch {
                     Logger.toggles.error("Failed to count trash items: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+    
+    private func getTrashCountViaFinder() async -> Int {
+        let script = """
+            tell application "Finder"
+                return count of items in trash
+            end tell
+            """
+        
+        guard let appleScript = NSAppleScript(source: script) else {
+            Logger.toggles.error("Failed to create AppleScript for trash count")
+            return 0
+        }
+        
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var error: NSDictionary?
+                let result = appleScript.executeAndReturnError(&error)
+                
+                if let error = error {
+                    let errorMessage = error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
+                    Logger.toggles.error("AppleScript count error: \(errorMessage)")
                     continuation.resume(returning: 0)
+                } else {
+                    let count = Int(result.int32Value)
+                    Logger.toggles.debug("Trash count via Finder: \(count)")
+                    continuation.resume(returning: count)
                 }
             }
         }
@@ -274,6 +358,36 @@ class EmptyTrashService: BaseObservableToggleService {
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func showTrashAccessAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Trash Access Required"
+        alert.informativeText = "QuickToggle needs permission to access your Trash folder. Please grant Full Disk Access in System Settings > Privacy & Security > Full Disk Access."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+        
+        // Use non-blocking sheet if we have a window
+        if let window = NSApp.keyWindow ?? NSApp.windows.first {
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn {
+                    // Open Full Disk Access settings
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FullDiskAccess") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        } else {
+            // Fallback to modal
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FullDiskAccess") {
                     NSWorkspace.shared.open(url)
                 }
             }

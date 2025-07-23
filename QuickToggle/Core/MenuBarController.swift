@@ -112,9 +112,40 @@ class MenuBarController: NSObject, NSMenuDelegate {
         viewModel.performAction(action)
     }
     
+    @objc func bluetoothDeviceClicked(_ sender: NSMenuItem) {
+        guard let device = sender.representedObject as? BluetoothDeviceInfo else {
+            Logger.menuBar.error("No device found in menu item")
+            return
+        }
+        
+        Logger.menuBar.info("Bluetooth device clicked: \(device.name)")
+        
+        // Get the Bluetooth service to handle the connection
+        if let bluetoothService = ToggleServiceManager.shared.service(for: .bluetooth) as? BluetoothService {
+            Task {
+                do {
+                    if device.isConnected {
+                        // Disconnect the device
+                        try await bluetoothService.disconnectDevice(address: device.address)
+                    } else {
+                        // Connect the device
+                        try await bluetoothService.connectDevice(address: device.address)
+                    }
+                    
+                    // Update menu after connection change
+                    await MainActor.run {
+                        self.updateMenu()
+                    }
+                } catch {
+                    Logger.menuBar.error("Failed to \(device.isConnected ? "disconnect" : "connect") device: \(error)")
+                }
+            }
+        }
+    }
+    
     @objc func openPreferences() {
-        Logger.menuBar.info("Preferences menu item clicked - not yet implemented")
-        // TODO: Implement preferences window in a future ticket
+        Logger.menuBar.info("Preferences menu item clicked")
+        PreferencesWindowController.showPreferences()
     }
     
     @objc func quit() {
@@ -132,8 +163,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         Logger.menuBar.debug("Menu will open - refreshing dynamic content")
         
-        // Refresh dynamic toggles (like trash count)
+        // Refresh dynamic toggles (like trash count) and update Bluetooth devices
         Task {
+            // Update Bluetooth device list if service is available
+            if let bluetoothService = ToggleServiceManager.shared.service(for: .bluetooth) as? BluetoothService {
+                bluetoothService.updateDeviceList()
+            }
+            
             await viewModel.refreshDynamicToggles()
             await MainActor.run {
                 self.updateMenu()

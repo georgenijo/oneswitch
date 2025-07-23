@@ -217,16 +217,16 @@
 **Priority**: High  
 **Assignee**: Agent One  
 **Story Points**: 8  
-**Status**: To Do
+**Status**: Done
 
 **Description**: As a user, I want to customize which toggles appear in the menu.
 
 **Acceptance Criteria**:
-- [ ] SwiftUI preferences window
-- [ ] List of all available toggles
-- [ ] Checkboxes to show/hide toggles
-- [ ] Changes reflect immediately in menu
-- [ ] Preferences persist across restarts
+- [x] SwiftUI preferences window
+- [x] List of all available toggles
+- [x] Checkboxes to show/hide toggles
+- [x] Changes reflect immediately in menu
+- [x] Preferences persist across restarts
 
 **Dependencies**: QT-006
 
@@ -241,15 +241,15 @@
 **Priority**: High  
 **Assignee**: Agent One  
 **Story Points**: 8  
-**Status**: To Do
+**Status**: Done
 
 **Description**: Implement core Bluetooth service for device management.
 
 **Acceptance Criteria**:
-- [ ] Bluetooth service can list devices
-- [ ] Can connect/disconnect devices
-- [ ] Monitors connection status
-- [ ] Handles permissions properly
+- [x] Bluetooth service can list devices
+- [x] Can connect/disconnect devices
+- [x] Monitors connection status
+- [x] Handles permissions properly
 
 **Dependencies**: QT-003
 
